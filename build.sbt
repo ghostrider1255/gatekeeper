@@ -1,16 +1,49 @@
+import BuildUtils._
+
+lazy val artifactoryRepo = settingKey[sbt.librarymanagement.Resolver]("Artifactory repository value")
 
 name := "gatekeeper"
-version := "0.1"
 scalaVersion := "2.13.1"
 organization := "com.javasree.scala.gatekeeper"
 
-val springBootVersion = "2.1.3.RELEASE"
+publishMavenStyle := true
+
+isSnapshot := {
+  sys.props.getOrElse("GATE_KEEPER_SNAPSHOT", sys.env.getOrElse("GATE_KEEPER_SNAPSHOT", "true")) match {
+    case "true" | "1" => true
+    case "false" | "0" => false
+    case _ => println("taking the default value as true for 'SNAPSHOT'")
+      true
+  }
+}
+
+
+publishArtifact in (Compile, packageDoc) := false
+publishArtifact in (Compile, packageSrc) := false
+
+/*
+if env variable(GATE_KEEPER_SNAPSHOT) is set to true then build will do "snapshot"
+or else it will be "release"
+* */
+version := {
+  readVersion("app-build")+
+    (isSnapshot.value match {
+      case true => "-SNAPSHOT"
+      case false => ""
+    })
+}
+
+artifactoryRepo := {
+  val repoURL = "http://localhost:8081/artifactory"
+  (isSnapshot.value match {
+    case true => "jfrog-snapshot" at s"${repoURL}/javasree-sbt-snapshot;build.timestamp=" + new java.util.Date().getTime
+    case false => "jfrog-remote" at s"${repoURL}/javasree-sbt-local"
+  })
+}
+
+publishTo := Some( artifactoryRepo.value )
+credentials += Credentials("Artifactory Realm", "localhost", "admin", "password")
 
 libraryDependencies ++= Seq(
-  "org.springframework.boot" % "spring-boot-starter-parent" % springBootVersion,
-  "org.springframework.boot" % "spring-boot-starter-web" % springBootVersion,
-  "org.springframework.boot" % "spring-boot-starter-test" % springBootVersion,
-  "org.springframework.cloud" % "spring-cloud-starter-netflix-eureka-client" % springBootVersion,
-  "org.springframework.cloud" % "spring-cloud-starter-netflix-zuul" % springBootVersion,
   "com.google.code.gson" % "gson" % "2.8.2"
-)
+)++Dependencies.springDependencies
